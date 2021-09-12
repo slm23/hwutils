@@ -16,8 +16,7 @@ rebpss = []
 
 # functions
 
-
-def get_hv_config(ch):
+def get_hvbias_config(ch):
     hvconf = int(rebpower.getConfigurationParameterValue(ch, "hvBias"))
     if hvconf < 0 or hvconf > hvconfmax:
         print("hvconf:{} out of allowed range: 0--{}".format(hvconf, hvconfmax))
@@ -25,36 +24,50 @@ def get_hv_config(ch):
     return hvconf
 
 
-def get_hv_value(ch):
+def get_hvbias_volts(ch):
     hvval = float(rebpower.readChannelValue("".join([ch, "/hvbias/VbefSwch"])))
     if hvval < 0 or hvval > hvvalmax:
         print("hvbias value:{} out of allowed range: 0--{}".format(hvconf, hvvalmax))
     return hvval
 
 
-def get_hv_current(ch):
+def get_hvbias_current(ch):
     hvcurr = float(rebpower.readChannelValue("".join([ch, "/hvbias/IbefSwch"])))
     if hvcurr < 0 or hvcurr > hvcurrmax:
         print("hvbias current:{} out of allowed range: 0--{}".format(hvcurr, hvcurrmax))
     return hvcurr
 
+def get_hvbias_dac(ch):
+    hvbias_dac = int(getattr(rebpower, ch)().readHvBiasDac())
+    return hvbias_dac
 
-if __name__ == "__main__":
-    #
-    hvCsetpt = 30.0
-    hvSsetpt = 30.0
-    hvvalmax = 52.0
-    hvconfmax = 3200
-    hvcurrmax = 0.150
-    dacStart = 1200
-    bigstep = 20
-    smallstep = 5
-    hvStateOn = True
-    if rebpower is None:
-        print("missing rebpower subsystem, exiting...")
-        exit(-1)
-    t0 = time.time()
-    t0str = time.strftime("%Y-%m-%dT%H:%M:%S %Z", time.localtime(t0))
+def init_hvbiasdict():
+    """
+    """
+    hvbiasdict = dict()  # will hold current data for REBs
+    hvbiasdict = update_hvbiasdict(hvbiasdict)
+    return hvbiasdict
+
+def update_hvbiasdict(hvbiasdict):
+    """
+    """
+    for reb in sorted(srebs + crebs):
+        reb_state = str(state.getComponentStateBundle(reb))
+        if re.match(r"RebPowerState:ON", reb_state):
+            hvbiasdict[reb]["state"] = True
+        else:
+            hvbiasdict[reb]["state"] = False
+        hvbiasdict[reb]["setpt"] = get_hvbias_setpt(reb):
+        hvbiasdict[reb]["enable"] = hv_enable  # config later
+        hvbiasdict[reb]["config"] = get_hvbias_config(reb)
+        hvbiasdict[reb]["volts"] = get_hvbias_volts(reb)
+        hvbiasdict[reb]["current"] = get_hvbias_current(reb)
+        hvbiasdict[reb]["dac"] = get_hvbias_dac(reb):
+        hvbiasdict[reb]["delta_dac"] = 0
+        hvbiasdict[reb]["delta_volts"] = 0.0
+        # hvbiasdict[reb][""] = ""
+
+def init_components():
     state = rebpower.getState()
     print(state)
     for component in state.componentsWithStates.iterator():
@@ -65,68 +78,78 @@ if __name__ == "__main__":
         if re.match(r"R../Reb[GW]", component):
             crebs.append(str(component))
 
+def get_hvbias_setpt(reb):
+    if reb in srebs:
+        hvbiasdict[reb]["setpt"] = hvSsetpt  # change these to configs later
+    elif reb in crebs:
+        hvbiasdict[reb]["setpt"] = hvCsetpt
+    else:
+        # this should be an error
+        hvbiasdict[reb]["setpt"] = 0.0
+
+def get_hvbias_dac_steps(delta):
+        maxstep = bigstep if abs(delta) > 2.0 else smallstep
+        steps = int(delta / 0.05)
+        if steps == 0:
+            continue
+        if steps > maxstep:
+            steps = maxstep
+        if steps < -maxstep:
+            steps = -maxstep
+        return steps
+
+
+if __name__ == "__main__":
+    #
+    hvCsetpt = 30.0
+    hvSsetpt = 30.0
+    hvvalmax = 52.0
+    hvconfmax = 3200
+    hvcurrmax = 0.150
+    hvbias_dac_min = 1000
+    dacStart = 1200
+    bigstep = 20
+    smallstep = 5
+    hv_enable = True
+    if rebpower is None:
+        print("missing rebpower subsystem, exiting...")
+        exit(-1)
+    t0 = time.time()
+    t0str = time.strftime("%Y-%m-%dT%H:%M:%S %Z", time.localtime(t0))
+
+    init_components():
     print("RebPS[]={}".format(rebpss))
     print("science rebs={}".format(srebs))
     print("corner rebs={}".format(crebs))
 
+    # print out info for each RebPS
     for rebps in rebpss:
         dstr = getattr(rebpower, rebps)().dump()
         print(dstr)
 
     # initialization
-    hvbiasdict = dict()  # will hold current data for REBs
-    for reb in sorted(srebs + crebs):
-        hvbiasdict[reb] = dict()
-        reb_state = str(state.getComponentStateBundle(reb))
-        if re.match(r"RebPowerState:ON", reb_state):
-            hvbiasdict[reb]["state"] = True
-        else:
-            hvbiasdict[reb]["state"] = False
-        hvbiasdict[reb]["config"] = get_hv_config(reb)
-        hvbiasdict[reb]["voltage"] = get_hv_value(reb)
-        hvbiasdict[reb]["current"] = get_hv_current(reb)
-        if reb in srebs:
-            hvbiasdict[reb]["setpt"] = hvSsetpt  # change these to configs later
-        elif reb in crebs:
-            hvbiasdict[reb]["setpt"] = hvCsetpt
-        else:
-            hvbiasdict[reb]["setpt"] = 0.0
-        hvbiasdict[reb]["deltadac"] = 0
-        hvbiasdict[reb]["deltavolt"] = 0.0
-        # hvbiasdict[reb][""] = ""
-        # verify initialization is okay?
+    hvbiasdict = init_hvbiasdict()
 
-    # main loop
+    # initial pass through
+    update_hvbiasdict(hvbiasdict)
     for reb in sorted(hvbiasdict):
-        # print("{}:  config:{:>4d}  voltage:{:>7.3f}  current:{:>6.3f}".format(reb,
-        #     hvbiasdict[reb]["config"], hvbiasdict[reb]["voltage"], hvbiasdict[reb]["current"]))
-        reb_state = str(state.getComponentStateBundle(reb))
-        if re.match(r"RebPowerState:ON", reb_state):
-            hvbiasdict[reb]["state"] = True
-        else:
-            hvbiasdict[reb]["state"] = False
-        if reb in srebs:
-            hvbiasdict[reb]["setpt"] = hvSsetpt  # change these to configs later
-        elif reb in crebs:
-            hvbiasdict[reb]["setpt"] = hvCsetpt
-        else:
-            hvbiasdict[reb]["setpt"] = 0.0
-        if hvbiasdict[reb]["state"] and hvbiasdict[reb]["setpt"] > 0.0:
-            hvbiasdict[reb]["config"] = get_hv_config(reb)
-            hvbiasdict[reb]["voltage"] = get_hv_value(reb)
-            hvbiasdict[reb]["current"] = get_hv_current(reb)
-            delta = hvbiasdict[reb]["deltavolt"] = (
-                hvbiasdict[reb]["setpt"] - hvbiasdict[reb]["voltage"]
+        if hvbiasdict[reb]["state"] and hvbiasdict[reb]["enable"]:
+            delta = hvbiasdict[reb]["delta_volts"] = (
+                hvbiasdict[reb]["setpt"] - hvbiasdict[reb]["volts"]
             )
-            maxstep = bigstep if abs(delta) > 2.0 else smallstep
-            steps = int(delta / 0.05)
-            if steps == 0:
+            if hvbiasdict[reb]["config"] != hvbiasdict[reb]["dac"]:
+                print("{}:hvbias config:{} != dac:{}, skipping {}".format(
+                    reb, hvbiasdict[reb]["config"], hvbiasdict[reb]["dac"], reb))
                 continue
-            if steps > maxstep:
-                steps = maxstep
-            if steps < -maxstep:
-                steps = -maxstep
-            hvbiasdict[reb]["deltadac"] = steps
+            if hvbiasdict[reb]["dac"] < hvbias_dac_min:
+                print("{}: Configure hvbias dac to min={}", reb, hvbias_dac_min)
+                getattr( rebpower, reb)().submitChange("hvBias", hvbias_dac_min)
+            else:
+                hvbiasdict[reb]["delta_dac"] = steps = get_hvbias_dac_steps(delta)
+                new_dac = hvbiasdict[reb]["dac"] + steps
+                getattr( rebpower, reb)().submitChange("hvBias", new_dac)
+    rebpower.applySubmittedChanges()
+    time.sleep(60)
 
     t1 = time.time()
     t1str = time.strftime("%Y-%m-%dT%H:%M:%S %Z", time.localtime(t0))
