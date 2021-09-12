@@ -7,7 +7,7 @@ import time
 
 # globals
 try:
-    rebpower = CCS.attachProxy("ts7-rebpower")  #### CHANGE
+    rebpower = CCS.attachProxy("rebpower")  #### CHANGE
 except:
     rebpower = None
 srebs = []
@@ -41,35 +41,47 @@ def get_hvbias_dac(ch):
     hvbias_dac = int(getattr(rebpower, ch)().readHvBiasDac())
     return hvbias_dac
 
-def init_hvbiasdict():
+def init_hvbiasdict(state):
     """
     """
     hvbiasdict = dict()  # will hold current data for REBs
-    hvbiasdict = update_hvbiasdict(hvbiasdict)
+    for reb in sorted(srebs + crebs):
+        hvbiasdict[reb] = dict()
+        hvbiasdict[reb]["state"] = False
+        hvbiasdict[reb]["setpt"] = 0.0
+        hvbiasdict[reb]["enable"] = False
+        hvbiasdict[reb]["config"] = 0
+        hvbiasdict[reb]["volts"] = 0.0
+        hvbiasdict[reb]["current"] = 0.0
+        hvbiasdict[reb]["dac"] = 0
+        hvbiasdict[reb]["delta_dac"] = 0
+        hvbiasdict[reb]["delta_volts"] = 0.0
+        # hvbiasdict[reb][""] = ""
     return hvbiasdict
 
-def update_hvbiasdict(hvbiasdict):
+def update_hvbiasdict(state, hvbiasdict):
     """
     """
     for reb in sorted(srebs + crebs):
         reb_state = str(state.getComponentStateBundle(reb))
-        if re.match(r"RebPowerState:ON", reb_state):
+        print("reb_state = {}".format(reb_state))
+        if re.search(r"RebPowerState:ON", reb_state):
             hvbiasdict[reb]["state"] = True
+            print("{} is ON".format(reb))
         else:
             hvbiasdict[reb]["state"] = False
+            print("{} is OFF".format(reb))
         hvbiasdict[reb]["setpt"] = get_hvbias_setpt(reb)
-        hvbiasdict[reb]["enable"] = hv_enable  # config later
+        hvbiasdict[reb]["enable"] = hv_enable  # retrieve as config later
         hvbiasdict[reb]["config"] = get_hvbias_config(reb)
         hvbiasdict[reb]["volts"] = get_hvbias_volts(reb)
         hvbiasdict[reb]["current"] = get_hvbias_current(reb)
-        hvbiasdict[reb]["dac"] = get_hvbias_dac(reb):
+        hvbiasdict[reb]["dac"] = get_hvbias_dac(reb)
         hvbiasdict[reb]["delta_dac"] = 0
         hvbiasdict[reb]["delta_volts"] = 0.0
         # hvbiasdict[reb][""] = ""
 
-def init_components():
-    state = rebpower.getState()
-    print(state)
+def init_components(state):
     for component in state.componentsWithStates.iterator():
         if re.match(r"RebPS/P..", component):
             rebpss.append(str(component))
@@ -80,18 +92,16 @@ def init_components():
 
 def get_hvbias_setpt(reb):
     if reb in srebs:
-        hvbiasdict[reb]["setpt"] = hvSsetpt  # change these to configs later
+        return hvSsetpt
     elif reb in crebs:
-        hvbiasdict[reb]["setpt"] = hvCsetpt
+        return hvCsetpt
     else:
         # this should be an error
-        hvbiasdict[reb]["setpt"] = 0.0
+        return 0.0
 
 def get_hvbias_dac_steps(delta):
         maxstep = bigstep if abs(delta) > 2.0 else smallstep
         steps = int(delta / 0.05)
-        if steps == 0:
-            continue
         if steps > maxstep:
             steps = maxstep
         if steps < -maxstep:
@@ -106,9 +116,9 @@ if __name__ == "__main__":
     hvvalmax = 52.0
     hvconfmax = 3200
     hvcurrmax = 0.150
-    hvbias_dac_min = 1000
+    hvbias_dac_min = 1200
     dacStart = 1200
-    bigstep = 20
+    bigstep = 40
     smallstep = 5
     hv_enable = True
     if rebpower is None:
@@ -117,7 +127,9 @@ if __name__ == "__main__":
     t0 = time.time()
     t0str = time.strftime("%Y-%m-%dT%H:%M:%S %Z", time.localtime(t0))
 
-    init_components():
+    state = rebpower.getState()
+    print(state)
+    init_components(state)
     print("RebPS[]={}".format(rebpss))
     print("science rebs={}".format(srebs))
     print("corner rebs={}".format(crebs))
@@ -128,12 +140,14 @@ if __name__ == "__main__":
         print(dstr)
 
     # initialization
-    hvbiasdict = init_hvbiasdict()
+    state = rebpower.getState()
+    hvbiasdict = init_hvbiasdict(state)
 
     # initial pass through
-    update_hvbiasdict(hvbiasdict)
+    update_hvbiasdict(state, hvbiasdict)
     for reb in sorted(hvbiasdict):
         if hvbiasdict[reb]["state"] and hvbiasdict[reb]["enable"]:
+            print("{} is ON and enabled -- first pass".format(reb))
             delta = hvbiasdict[reb]["delta_volts"] = (
                 hvbiasdict[reb]["setpt"] - hvbiasdict[reb]["volts"]
             )
@@ -147,9 +161,12 @@ if __name__ == "__main__":
             else:
                 hvbiasdict[reb]["delta_dac"] = steps = get_hvbias_dac_steps(delta)
                 new_dac = hvbiasdict[reb]["dac"] + steps
+                print("{}: Configure hvbias dac to hvBias={}".format(reb, new_dac))
                 getattr( rebpower, reb)().submitChange("hvBias", new_dac)
+        else:
+            print("{} is NOT ON or is NOT enabled".format(reb))
     rebpower.applySubmittedChanges()
-    time.sleep(60)
+    time.sleep(1)
 
     t1 = time.time()
     t1str = time.strftime("%Y-%m-%dT%H:%M:%S %Z", time.localtime(t0))
@@ -159,152 +176,3 @@ if __name__ == "__main__":
 
     exit
 
-
-#    # bays = list([ "R43"])    ### CHANGE
-#    setpoint = [50.0, 50.0, 50.0, 50.0, 50.0, 50.0]
-#    rebps = ""
-#    hvmax = 57.0
-#    hvStateOn = True
-#    # channels = list(product(bays, rebs))
-#    # channels = [ "%s/Reb%d"%achannel for achannel in channels  ]
-#    channels = ["R43/Reb0", "R43/Reb1", "R43/Reb2", "R33/Reb0", "R33/Reb1", "R33/Reb2"]
-#    filename = "/tmp/{}_hvbias_drive.log".format(
-#        rebps, time.strftime("%Y%m%d%H%M", time.gmtime(time.time()))
-#    )
-#    fp = open(filename, "w")
-
-#    bigstep = 20
-#    smallstep = 5
-#    maxdac = 3200
-#    dacStart = 1200
-
-#    # put RebPS info into the output and the file
-#    dumpstr = dump()
-#    print (dumpstr)
-#    fp.write("{}\n".format(dumpstr))
-
-#    # initialize
-#    # rebpower.change("periodicTasks/monitor-publish/RebPS/{}".format(rebps), "taskPeriodMillis", "1000")
-#    dosleep = False
-#    for idx, achannel in enumerate(channels):
-#        if int(getDAC(achannel)) < 1000:
-#            changeDAC(achannel, "1000")
-#            dosleep = True
-#    if dosleep:
-#        time.sleep(60)
-
-#    if hvStateOn:
-#        for achannel in channels:
-#            hvBiasOn(achannel)
-#            time.sleep(1)
-#    else:
-#        for achannel in channels:
-#            hvBiasOff(achannel)
-#        time.sleep(1)
-
-#    hvarr = []
-#    ival = []
-#    dac0 = []
-#    for idx, achannel in enumerate(channels):
-#        hvarr.append(float(getHV(achannel)))
-#        ival.append(float(setpoint[idx]))
-#        dac0.append(int(getDAC(achannel)))
-
-#    for idx, achannel in enumerate(channels):
-#        if dac0[idx] < dacStart:
-#            changeDAC(achannel, dacStart)
-
-#    while True:
-#        print ".",
-#        while any(
-#            [hvv < hvi - 0.06 or hvv > hvi + 0.06 for hvv, hvi in zip(hvarr, ival)]
-#        ):
-#            print ""
-#            for idx, achannel in enumerate(channels):
-#                # adjust
-#                hvarr[idx] = float(getHV(achannel))  # update value
-#                if hvarr[idx] > hvmax:
-#                    print (
-#                        "exiting on error: hvBias:{} for channel:{} too high (>{})".format(
-#                            hvarr[idx], achannel, hvmax
-#                        )
-#                    )
-#                    exit(-1)
-#                delta = float(ival[idx] - hvarr[idx])
-#                steps = int(delta / 0.05)
-#                maxstep = bigstep if abs(delta) > 2.0 else smallstep
-#                if steps == 0:
-#                    continue
-#                if steps > maxstep:
-#                    steps = maxstep
-#                if steps < -maxstep:
-#                    steps = -maxstep
-#                dac = int(getDAC(achannel))
-#                if dac + steps > maxdac:  # adjust the set point since can't reach it
-#                    ival[idx] = hvarr[idx]
-#                else:
-#                    changeDAC(achannel, dac + steps)
-#                t0 = time.time()
-#                t1 = time.strftime("%Y-%m-%dT%H:%M:%S %Z", time.localtime(t0))
-#                print (
-#                    "{:13} ch:{}  dac:{:4} --> {:4}  hv:{:6.3f} delta:{:6.3f}  {}".format(
-#                        t0, achannel, dac, dac + steps, hvarr[idx], delta, t1
-#                    )
-#                )
-#                fp.write(
-#                    "{:13} ch:{}  dac:{:4} --> {:4}  hv:{:6.3f} delta:{:6.3f}  {}".format(
-#                        t0, achannel, dac, dac + steps, hvarr[idx], delta, t1
-#                    )
-#                )
-#            time.sleep(10)
-
-#        for idx, achannel in enumerate(channels):
-#            hvarr[idx] = float(getHV(achannel))  # update value
-
-#        time.sleep(30)
-
-#    fp.close()
-
-# def getHV(ch):
-#    if rebpower is None:
-#        return 49.80
-#    return getattr(rebpower, "{}/hvbias/VbefSwch".format(ch))().getValue()
-
-
-# def getHI(ch):
-#    if rebpower is None:
-#        return 0.000
-#    return getattr(rebpower, "{}/hvbias/IbefSwch".format(ch))().getValue()
-
-
-# def getDAC(ch):
-#    if rebpower is None:
-#        return 1000
-#    return int(
-#        getattr(rebpower, ch)().printComponentConfigurationParameters()["hvBias"]
-#    )
-
-
-# def changeDAC(ch, dac):
-#    if rebpower is None:
-#        return
-#    getattr(rebpower, ch)().change("hvBias", "{}".format(int(dac)))
-
-
-# def hvBiasOn(ch):
-#    if rebpower is None:
-#        return
-#    getattr(rebpower, ch)().hvBiasOn()
-
-
-# def hvBiasOff(ch):
-#    if rebpower is None:
-#        return
-#    getattr(rebpower, ch)().hvBiasOff()
-
-# def getState():
-#    return rebpower.getState()
-
-
-# def dump():
-#    return getattr(rebpower, "RebPS/{}".format(rebps))().dump()
