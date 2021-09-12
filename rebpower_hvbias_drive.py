@@ -57,7 +57,7 @@ def update_hvbiasdict(hvbiasdict):
             hvbiasdict[reb]["state"] = True
         else:
             hvbiasdict[reb]["state"] = False
-        hvbiasdict[reb]["setpt"] = get_hvbias_setpt(reb):
+        hvbiasdict[reb]["setpt"] = get_hvbias_setpt(reb)
         hvbiasdict[reb]["enable"] = hv_enable  # config later
         hvbiasdict[reb]["config"] = get_hvbias_config(reb)
         hvbiasdict[reb]["volts"] = get_hvbias_volts(reb)
