@@ -109,15 +109,15 @@ def init_components(state):
         if re.match(r"RebPS/P..", component):
             rebpss.append(str(component))
         # if re.match(r"R../Reb[012]", component):
-        if re.match(r"R0./Reb[012]", component):
+        if re.match(r"R../Reb[012]", component):
             srebs.append(str(component))
         if re.match(r"R../Reb[GW]", component):
             crebs.append(str(component))
 
 def get_hvbias_setpt(reb):
-    if reb in erebd:
+    if reb in erebd:       # excceptions need to go first here
         return erebd[reb]
-    if reb in srebs:
+    elif reb in srebs:
         return hvSsetpt
     elif reb in crebs:
         return hvCsetpt
