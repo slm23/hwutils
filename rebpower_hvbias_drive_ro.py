@@ -192,7 +192,7 @@ if __name__ == "__main__":
                     continue
                 if hvbiasdict[reb]["dac"] < hvbias_dac_min:
                     print("{}: Configure dac to min={}".format(reb, hvbias_dac_min))
-                    getattr( rebpower, reb)().submitChange("hvBias", hvbias_dac_min)
+                    # getattr( rebpower, reb)().submitChange("hvBias", hvbias_dac_min)
                     changes += 1
                 else:
                     volts_per_step = hvbiasdict[reb]["volts_per_step"]
@@ -205,7 +205,7 @@ if __name__ == "__main__":
                             new_dac = hvbiasdict[reb]["dac"] + steps
                         print("{}: hvBias {:>4d}->{:>4d} steps={:>3d} for delta={:>7.3} volts/step={:>5.3f} volts={:>6.3f}".format(
                             reb, hvbiasdict[reb]["dac"], new_dac, steps, delta, volts_per_step, hvbiasdict[reb]["volts"]))
-                        getattr( rebpower, reb)().submitChange("hvBias", new_dac)
+                        # getattr( rebpower, reb)().submitChange("hvBias", new_dac)
                         changes += 1
             else:
                 print("{} is NOT ON or is NOT enabled".format(reb))
@@ -216,7 +216,7 @@ if __name__ == "__main__":
         t1 = time.time()
         delta_time = t1 - t0
         if changes:
-            rebpower.applySubmittedChanges()
+            # rebpower.applySubmittedChanges()
             print("loop_time={} change_count={} at {}".format(
                 delta_time, changes, time.strftime("%Y-%m-%dT%H:%M:%S %Z",time.localtime(t1))))
         if std_delay > delta_time + min_delay:

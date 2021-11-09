@@ -80,15 +80,18 @@ if __name__ == "__main__":
 
     # initial pass through
     # main loop
-    delay = 1.0
+    ondelay = 30.0
+    seqdelay = 5.0
     update_rebdict(state, rebdict)
     for reb in sorted(rebdict):
         if not rebdict[reb]["state"] and rebdict[reb]["enable"]:
             print("{} is OFF and enabled -- powering on".format(reb))
             getattr(rebpower, reb)().powerRebOn()
+            time.sleep(ondelay)
+            getattr(rebpower, reb)().powerRebOff()
+            time.sleep(seqdelay)
         else:
             print("{} is ON or NOT enabled".format(reb))
-        time.sleep(delay)
 
     t1 = time.time()
     t1str = time.strftime("%Y-%m-%dT%H:%M:%S %Z", time.localtime(t0))
