@@ -23,9 +23,9 @@ from org.lsst.ccs.subsystem.focalplane.LSE71Commands import ReadoutMode
 
 # globals
 pseudo = ReadoutMode.PSEUDO
-exptime = 20.0
+exptime = 1.0
 row_shift_cnt = 10
-row_shift = 50
+row_shift = 60
 
 bb = None
 fp = None
