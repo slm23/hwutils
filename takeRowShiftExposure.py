@@ -96,10 +96,12 @@ if __name__ == "__main__":
 
     fp.clear(1)
     time.sleep(0.1)
-    fp.clear(1)
-    time.sleep(0.1)
-    fp.clear(1)
-    time.sleep(0.1)
+    fp.clear(5)
+    time.sleep(0.4)
+    # do a pseudo read to give a nice clear (after sitting a long while)
+    res = fp.startIntegration()
+    res = fp.endIntegration(pseudo)
+    time.sleep(2.4)
     # do a pseudo read to give a nice clear (after sitting a long while)
     res = fp.startIntegration()
     res = fp.endIntegration(pseudo)
@@ -126,11 +128,10 @@ if __name__ == "__main__":
     print("done")
 
     bb.ProjectorShutter().closeShutter()
+    # not sure how long to wait here
     time.sleep(0.2)
     fp.endIntegration()
-    #print(fp.getState())
     fp.waitForFitsFiles()
-    #print(fp.getState())
 
     # change back to previous config for stepAfterIntegrate
     fp.submitChange("sequencerConfig", "stepAfterIntegrate", stepAfterIntegrate0)
@@ -138,7 +139,7 @@ if __name__ == "__main__":
     #print("final: stepAfterIntegrate={}".format(fp.getConfigurationParameterValue("sequencerConfig", "stepAfterIntegrate")))
 
     t1 = time.time()
-    t1str = time.strftime("%Y-%m-%dT%H:%M:%S %Z", time.localtime(t0))
+    t1str = time.strftime("%Y-%m-%dT%H:%M:%S %Z", time.localtime(t1))
     #print(t0str)
     print(t1str)
     print("elapsed time: {}".format(t1 - t0))
