@@ -2,9 +2,11 @@
 from org.lsst.ccs.scripting import CCS
 from java.time import Duration
 from ccs import proxies
+from optparse import OptionParser
 import time
 import re
-import argparse
+import sys
+import os
 
 # focal-plane, rafts, reb states
 from org.lsst.ccs.bus.states import AlertState
@@ -24,57 +26,35 @@ pseudo = ReadoutMode.PSEUDO
 
 bb = None
 fp = None
+# functions
+
+def local_exit(retval=0):
+    os._exit(retval)
+
 try:
     bb = CCS.attachProxy("ts8-bench")
     fp = CCS.attachProxy("ts8-fp")  #### CHANGE
 except:
     print("failed to attach subsystems, exiting...")
-    exit(-1)
-
-# functions
-
-
-def parse_args():
-    """handle command line"""
-    #
-    parser = argparse.ArgumentParser(
-        description="Take row shift images for given exptime, shift_size, repeat_count",
-        epilog="Number of exposures will be (repeat_count + 1)",
-    )
-    parser.add_argument(
-        "exptime",
-        nargs=1,
-        default=1.0,
-        type=float,
-        required=True,
-        help="time between shifts",
-    )
-    parser.add_argument(
-        "shift_size",
-        nargs=1,
-        default=20,
-        type=int,
-        required=True,
-        help="number of rows to shift",
-    )
-    parser.add_argument(
-        "repeat_count",
-        nargs=1,
-        default=0,
-        type=int,
-        required=True,
-        help="number of times to shift",
-    )
-    return parser.parse_args()
-
+    local_exit(1)
 
 # main
 if __name__ == "__main__":
     #
     t0 = time.time()
     t0str = time.strftime("%Y-%m-%dT%H:%M:%S %Z", time.localtime(t0))
-    # process command line args
-    optlist = parse_args()
+
+    # process command line
+    parser=OptionParser()
+    parser.set_defaults(exptime=0.0, expcount=0, rowshift=0)
+    parser.add_option("--exptime", dest="exptime", type="float", metavar="EXPTIME")
+    parser.add_option("--expcount", dest="expcount", type="int", metavar="EXPCOUNT")
+    parser.add_option("--rowshift", dest="rowshift", type="int", metavar="ROWSHIFT")
+    (options, args) = parser.parse_args()
+
+    if len(args) != 0 or options.exptime == 0 or options.expcount == 0 or options.rowshift == 0:
+        print(parser.print_help())
+        local_exit(1)
 
     # initialization
     agent = fp.getAgentProperty("agentName")
@@ -87,48 +67,52 @@ if __name__ == "__main__":
     sstate = state.getState(CommandState)
     if sstate != CommandState.READY:
         print("{} is not in READY CommandState, exiting...".format(agent))
-        exit(-1)
+        local_exit()
     # SequencerState: [IDLE, RUNNING, IDLE_FLUSH]
     sstate = state.getState(SequencerState)
     if not re.match(r"IDLE", sstate.toString()):
         print("{} sequencer is not in IDLE* state, exiting...".format(agent))
-        exit(-1)
+        local_exit()
     # FocalPlaneState: [NEEDS_CLEAR,
     #     CLEARING, INTEGRATING, READING_OUT, QUIESCENT, ROW_SHIFT, IMAGE_WAIT]
     sstate = state.getState(FocalPlaneState)
     if sstate != FocalPlaneState.QUIESCENT:
         print("{} is not in QUIESCENT state, exiting...".format(agent))
-        exit(-1)
+        local_exit()
     # ConfigurationState: [UNCONFIGURED, CONFIGURED, DIRTY, INITIAL_SAFE]
     sstate = state.getState(ConfigurationState)
-    if sstate != ConfigurationState.UNCONFIGURED:
+    if sstate == ConfigurationState.UNCONFIGURED:
         print("{} is in UNCONFIGURED state, exiting...".format(agent))
-        exit(-1)
+        local_exit()
 
     for reb in state.componentsWithStates:
         # RebDeviceState: [OFFLINE, ONLINE]
         sstate = state.getComponentState(reb, RebDeviceState)
         if sstate == RebDeviceState.OFFLINE:
             print("{}/{} RebDeviceState is UNKNOWN, exiting...", agent, reb)
-            exit(-1)
+            local_exit()
         # RebValidationState: [UNKNOWN, VALID, INVALID]
         sstate = state.getComponentState(reb, RebValidationState)
         if sstate != RebValidationState.VALID:
             print("{}/{} RebValidationState is UNKNOWN, exiting...", agent, reb)
-            exit(-1)
+            local_exit()
         # CCDsPowerState: [UNKNOWN, FAULT, OFF, ON, DELTA]
         sstate = state.getComponentState(reb, CCDsPowerState)
         if sstate == CCDsPowerState.UNKNOWN:
             print("{}/{} CCDsPowerState is UNKNOWN, exiting...", agent, reb)
-            exit(-1)
+            local_exit()
         # HVBiasState: [UNKNOWN, OFF, ON]
         sstate = state.getComponentState(reb, HVBiasState)
         if sstate == HVBiasState.UNKNOWN:
             print("{}/{} HVBiasState is UNKNOWN, exiting...", agent, reb)
-            exit(-1)
+            local_exit()
 
-    # flush out the CCD assuming it has been sitting a long time
+    # close shutter and flush out the CCD assuming it has been sitting a long time
     # this isn't needed in an active system (or query darktime, time since clear)
+    try:
+        bb.ProjectorShutter().closeShutter()
+    except:
+        pass
     fp.clear(1)
     time.sleep(0.1)
     fp.clear(5)
@@ -149,20 +133,19 @@ if __name__ == "__main__":
     # must be set to false
     fp.submitChange("sequencerConfig", "stepAfterIntegrate", "false")
     fp.applySubmittedChanges()
-
     # begin the image
     bb.ProjectorShutter().openShutter()
     print(fp.startIntegration())
     print("integrating"),
     time.sleep(0.1)  # est shutter open delay
 
-    print("expose({}s)".format(optlist.exptime)),
-    time.sleep(optlist.exptime)
-    for sh in range(optlist.repeat_count):
-        print("shift({})".format(optlist.shift_size)),
-        fp.shiftNRows(optlist.shift_size)
-        print("expose({}s)".format(optlist.exptime)),
-        time.sleep(optlist.exptime)
+    print("expose({}s)".format(options.exptime)),
+    time.sleep(options.exptime)
+    for sh in range(options.expcount - 1):
+        print("shift({})".format(options.rowshift)),
+        fp.shiftNRows(options.rowshift)
+        print("expose({}s)".format(options.exptime)),
+        time.sleep(options.exptime)
     print("done")
 
     bb.ProjectorShutter().closeShutter()
@@ -179,4 +162,4 @@ if __name__ == "__main__":
     print(t1str)
     print("elapsed time: {}".format(t1 - t0))
 
-    exit
+    local_exit()
