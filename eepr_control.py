@@ -17,7 +17,7 @@ except:
 channels = ['Cold1', 'Cold2']
 readonly = dict()
 readonly['Cold1'] = True
-readonly['Cold2'] = True
+readonly['Cold2'] = False
 setpt = dict()
 setpt['Cold1'] = 18.0
 setpt['Cold2'] = 20.0
@@ -42,9 +42,9 @@ def set_eepr_valve_posn(ch, posn):
     if posn < eepr_min or posn > eepr_max:
         print("requested eepr_posn:{:5.2f} out of allowed range: {:2d}--{:2d}, skipping...".format(posn, eepr_min, eepr_max))
         return -1
-    print("called as set_eepr_valve_posn({}, {})".format(ch, posn))
-    # getattr(refrig, ch)().setValvePosition('EEPR', posn / 100.0)
-    print("getattr(refrig, {})().setValvePosition('EEPR', {})".format(ch, posn/100.0))
+    # print("called as set_eepr_valve_posn({}, {})".format(ch, posn))
+    getattr(refrig, ch)().setValvePosition('EEPR', posn / 100.0)
+    # print("getattr(refrig, {})().setValvePosition('EEPR', {})".format(ch, posn/100.0))
 
 
 def get_return_prs(ch):
@@ -85,7 +85,7 @@ if __name__ == "__main__":
             ch, cold_ctrl[ch]['return_prs_avg'], cold_ctrl[ch]['eepr_posn']))
 
     # main loop
-    changed = False
+    changed = False   # True triggers a reset of time weighted averaging of ReturnPrs
     while True:
         t0 = time.time()
         changes = 0
@@ -128,8 +128,11 @@ if __name__ == "__main__":
         #
         t1 = time.time()
         delta_time = t1 - t0
-        print("loop_time={:5.2f} change_count={:1d} at {}".format(
-                delta_time, changes, time.strftime("%Y-%m-%dT%H:%M:%S %Z",time.localtime(t1))))
+        print("{} ".format(time.strftime("%Y-%m-%dT%H:%M:%S %Z",time.localtime(t1)))),
+        print("(Chan,ReturnPrs,EEPR) = "),
+        for ch in channels:
+            print("({},{:5.2f},{:2d}) ".format(ch, cold_ctrl[ch]['return_prs_avg'], cold_ctrl[ch]['eepr_posn'])),
+        print("")
         if delay > delta_time:
             time.sleep(delay - delta_time)
         else:
