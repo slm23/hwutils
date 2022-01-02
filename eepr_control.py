@@ -25,6 +25,7 @@ delay = 120      # seconds between cycles
 min_delay = 60
 min_delta = 0.3  # trigger pressure delta from set point for a change (~2X noise)
 step = 1.0       # step size per change
+navg = 3.0       # factor for time averaging (ignored after a EEPR change)
 
 eepr_min = 25.0
 eepr_max = 80.0
@@ -58,9 +59,8 @@ def init_cold_ctrl():
     for ch in channels:
         cold_ctrl[ch] = dict()
         cold_ctrl[ch]['setpt'] = setpt[ch]
-        cold_ctrl[ch]['return_prs0'] = get_return_prs(ch)
-        cold_ctrl[ch]['return_prs1'] = cold_ctrl[ch]['return_prs0']
-        cold_ctrl[ch]['return_prs2'] = cold_ctrl[ch]['return_prs0']
+        cold_ctrl[ch]['return_prs'] = get_return_prs(ch)
+        cold_ctrl[ch]['return_prs_avg'] = cold_ctrl[ch]['return_prs'] 
         cold_ctrl[ch]['eepr_posn'] = get_eepr_valve_posn(ch)  # 0-100
         cold_ctrl[ch]['eepr_last'] = cold_ctrl[ch]['eepr_posn']
         cold_ctrl[ch]['readonly'] = readonly[ch]
@@ -82,30 +82,29 @@ if __name__ == "__main__":
     for ch in channels:
         print("{} ".format(time.strftime("%Y-%m-%dT%H:%M:%S %Z",time.localtime(t0)))),
         print("{}: ReturnPrs = {:5.2f}  EEPRValvePosn = {:2d}".format(
-            ch, cold_ctrl[ch]['return_prs0'], cold_ctrl[ch]['eepr_posn']))
+            ch, cold_ctrl[ch]['return_prs_avg'], cold_ctrl[ch]['eepr_posn']))
 
     # main loop
+    changed = False
     while True:
         t0 = time.time()
         changes = 0
         for ch in channels:
-            cold_ctrl[ch]['return_prs2'] = cold_ctrl[ch]['return_prs1']
-            cold_ctrl[ch]['return_prs1'] = cold_ctrl[ch]['return_prs0']
-            cold_ctrl[ch]['return_prs0'] = get_return_prs(ch)
+            cold_ctrl[ch]['return_prs'] = get_return_prs(ch)
+            if not changed:
+                cold_ctrl[ch]['return_prs_avg'] = cold_ctrl[ch]['return_prs'] * (1.0 / navg) + \
+                                                    cold_ctrl[ch]['return_prs_avg'] * (navg - 1.0) / navg
+            else:
+                cold_ctrl[ch]['return_prs_avg'] = cold_ctrl[ch]['return_prs']  # reset time averaging
             cold_ctrl[ch]['eepr_last'] = cold_ctrl[ch]['eepr_posn']
             cold_ctrl[ch]['eepr_posn'] = get_eepr_valve_posn(ch)
             if cold_ctrl[ch]['eepr_posn'] != cold_ctrl[ch]['eepr_last']:
                 cold_ctrl[ch]['readonly'] = True
                 print("WARNING: EEPR setting changed since last time, assuming operator override, setting to READONLY")
 
-            # average the last 3 readings
-            return_prs = (cold_ctrl[ch]['return_prs0'] +
-                            cold_ctrl[ch]['return_prs1'] +
-                            cold_ctrl[ch]['return_prs2']) / 3.0
-
             # if pressure is higher than set point, open the valve (positive)
             # if pressure is lower than set point, close the valve (negative)
-            delta_prs = return_prs - cold_ctrl[ch]['setpt']
+            delta_prs = cold_ctrl[ch]['return_prs_avg'] - cold_ctrl[ch]['setpt']
             eepr_posn = eepr_new = cold_ctrl[ch]['eepr_posn']
             if delta_prs > min_delta:
                 eepr_new = eepr_posn + 1
@@ -122,6 +121,10 @@ if __name__ == "__main__":
                     print(" (readonly, nochange)")
                 changes += 1
 
+        if changes:
+            changed = True
+        else:
+            changed = False
         #
         t1 = time.time()
         delta_time = t1 - t0
