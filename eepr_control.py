@@ -34,14 +34,16 @@ def get_eepr_valve_posn(ch):
     eepr_posn = float(getattr(refrig, "".join([ch, "/EEPRValvePosn"]))().getValue())
     if eepr_posn < eepr_min or eepr_posn > eepr_max:
         print("WARNING: eepr_posn value:{} out of allowed range: {:2d}--{:2d}".format(eepr_posn, eepr_min, eepr_max))
-    return eepr_posn
+    return int(round(eepr_posn))
 
 
 def set_eepr_valve_posn(ch, posn):
     if posn < eepr_min or posn > eepr_max:
         print("requested eepr_posn:{:5.2f} out of allowed range: {:2d}--{:2d}, skipping...".format(posn, eepr_min, eepr_max))
         return -1
-    getattr(refrig, ch)().setValvePosition('EEPR', posn / 100.0)
+    print("called as set_eepr_valve_posn({}, {})".format(ch, posn))
+    # getattr(refrig, ch)().setValvePosition('EEPR', posn / 100.0)
+    print("getattr(refrig, {})().setValvePosition('EEPR', {})".format(ch, posn/100.0))
 
 
 def get_return_prs(ch):
@@ -80,7 +82,7 @@ if __name__ == "__main__":
     for ch in channels:
         print("{} ".format(time.strftime("%Y-%m-%dT%H:%M:%S %Z",time.localtime(t0)))),
         print("{}: ReturnPrs = {:5.2f}  EEPRValvePosn = {:2d}".format(
-            ch, cold_ctrl[ch]['return_prs0'], int(round(cold_ctrl[ch]['eepr_posn']))))
+            ch, cold_ctrl[ch]['return_prs0'], cold_ctrl[ch]['eepr_posn']))
 
     # main loop
     while True:
@@ -106,12 +108,12 @@ if __name__ == "__main__":
             delta_prs = return_prs - cold_ctrl[ch]['setpt']
             eepr_posn = eepr_new = cold_ctrl[ch]['eepr_posn']
             if delta_prs > min_delta:
-                eepr_new = int(round(eepr_posn + 1.0))
+                eepr_new = eepr_posn + 1
             elif delta_prs < -min_delta:
-                eepr_new = int(round(eepr_posn - 1.0))
+                eepr_new = eepr_posn - 1
 
             if eepr_new != eepr_posn:
-                print("{} EEPR: {:2d} --> {:2d}".format(ch, int(round(eepr_posn), int(round(eepr_new))),
+                print("{} EEPR: {:2d} --> {:2d}".format(ch, eepr_posn, eepr_new)),
                 if not cold_ctrl[ch]['readonly']:
                     print("")
                     set_eepr_valve_posn(ch, eepr_new)
