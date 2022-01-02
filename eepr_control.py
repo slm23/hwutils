@@ -111,7 +111,7 @@ if __name__ == "__main__":
                 eepr_new = int(round(eepr_posn - 1.0))
 
             if eepr_new != eepr_posn:
-                print("{} EEPR: {:2d} --> {:2d}".format(ch, eepr_posn, eepr_new)),
+                print("{} EEPR: {:2d} --> {:2d}".format(ch, int(round(eepr_posn), int(round(eepr_new))),
                 if not cold_ctrl[ch]['readonly']:
                     print("")
                     set_eepr_valve_posn(ch, eepr_new)
