@@ -117,10 +117,10 @@ if __name__ == "__main__":
                 if not cold_ctrl[ch]['readonly']:
                     print("")
                     set_eepr_valve_posn(ch, eepr_new)
+                    cold_ctrl[ch]['eepr_posn'] = eepr_new
                 else:
                     print(" (readonly, nochange)")
                 changes += 1
-                cold_ctrl[ch]['eepr_posn'] = eepr_new
 
         #
         t1 = time.time()
