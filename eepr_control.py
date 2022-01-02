@@ -17,7 +17,7 @@ except:
 channels = ['Cold1', 'Cold2']
 readonly = dict()
 readonly['Cold1'] = True
-readonly['Cold2'] = False
+readonly['Cold2'] = True
 setpt = dict()
 setpt['Cold1'] = 18.0
 setpt['Cold2'] = 20.0
@@ -129,9 +129,10 @@ if __name__ == "__main__":
         t1 = time.time()
         delta_time = t1 - t0
         print("{} ".format(time.strftime("%Y-%m-%dT%H:%M:%S %Z",time.localtime(t1)))),
-        print("(Chan,ReturnPrs,EEPR) = "),
+        print("(Chan,Setpt,ReturnPrs,EEPR) = "),
         for ch in channels:
-            print("({},{:5.2f},{:2d}) ".format(ch, cold_ctrl[ch]['return_prs_avg'], cold_ctrl[ch]['eepr_posn'])),
+            print("({},{:5.2f},{:5.2f},{:2d}) ".format(ch, cold_ctrl[ch]['setpt'],
+                  cold_ctrl[ch]['return_prs_avg'], cold_ctrl[ch]['eepr_posn'])),
         print("")
         if delay > delta_time:
             time.sleep(delay - delta_time)
