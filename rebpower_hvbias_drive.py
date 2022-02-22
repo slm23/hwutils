@@ -21,6 +21,13 @@ volts_per_step0 = 0.125
 # exceptional rebs (special setpoint)
 erebd = dict()
 erebd["R01/Reb0"] = 30.0
+# regular rebs
+sreb_regex = r"R../Reb[012]"
+creb_regex = r"R../Reb[GW]"
+# enabled rebs
+enabled_rebs = re.compile(r"R22/Reb[012]")
+# disabled rebs
+disabled_rebs = r"R[^2][^2]/Reb."
 
 # functions
 
@@ -80,8 +87,11 @@ def update_hvbiasdict(state, hvbiasdict):
             hvbiasdict[reb]["state"] = True
         else:
             hvbiasdict[reb]["state"] = False
+        if enabled_rebs.match(reb):
+            hvbiasdict[reb]["enable"] = True
+        else:
+            next
         hvbiasdict[reb]["setpt"] = get_hvbias_setpt(reb)
-        hvbiasdict[reb]["enable"] = hv_enable  # retrieve as config later
         hvbiasdict[reb]["config"] = int(rebpower.getConfigurationParameterValue(reb, "hvBias"))
         hvbiasdict[reb]["last_volts"] = hvbiasdict[reb]["volts"]
         hvbiasdict[reb]["volts"] = float(rebpower.readChannelValue("".join([reb, "/hvbias/VbefSwch"])))
@@ -105,9 +115,9 @@ def init_components(state):
         if re.match(r"RebPS/P..", component):
             rebpss.append(component)
         # if re.match(r"R../Reb[012]", component):
-        if re.match(r"R../Reb[012]", component):
+        if re.match(sreb_regex, component):
             srebs.append(component)
-        if re.match(r"R../Reb[GW]", component):
+        if re.match(creb_regex, component):
             crebs.append(component)
 
 def get_hvbias_setpt(reb):
@@ -164,7 +174,7 @@ if __name__ == "__main__":
     # initial pass through
     # main loop
     small_delay = 0.05
-    std_delay = 60
+    std_delay = 20
     min_delay = 10
     limit_steps = 0
     allrebs = sorted(hvbiasdict)
@@ -176,7 +186,7 @@ if __name__ == "__main__":
         update_hvbiasdict(state, hvbiasdict)
         for reb in allrebs:
             if hvbiasdict[reb]["state"] and hvbiasdict[reb]["enable"]:
-                # print("{} is ON and enabled -- first pass".format(reb))
+                #print("{} is ON and enabled".format(reb))
                 volts = hvbiasdict[reb]["volts"]
                 setpt = hvbiasdict[reb]["setpt"]
                 delta = setpt - volts
@@ -204,7 +214,7 @@ if __name__ == "__main__":
                         hvbiasdict[reb]["target"].submitChange("hvBias", new_dac)
                         changes += 1
             else:
-                print("{} is NOT ON or is NOT enabled".format(reb))
+                #print("{} is NOT ON or is NOT enabled".format(reb))
                 pass
 
             time.sleep(small_delay)
