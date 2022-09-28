@@ -81,15 +81,34 @@ def parse_args():
     # commands
     parser.add_argument(
         "--setid",
-        nargs="?",
+        nargs=1,
         type=int,
-        const=1,
+        metavar='rs485id',
         help="set the RS485 id:{1..253} and exit",
     )
     parser.add_argument(
-        "--setrelay1",
-        nargs="2",
-        help="setrelay1 <value:float> <direction:BELOW|ABOVE>",
+        "--setenablerelay",
+        nargs=2,
+        metavar=('rs485id', 'ON|OFF'),
+        help="setenablerelay <id(1,2,3)> <ON|OFF>",
+    )
+    parser.add_argument(
+        "--setpointrelay",
+        nargs=2,
+        metavar=('rs485id', 'setpoint'),
+        help="setpointrelay <id(1,2,3> <setpoint:.2E>",
+    )
+    parser.add_argument(
+        "--setdirectionrelay",
+        nargs=2,
+        metavar=('rs485id', 'direction'),
+        help="setdirectionrelay <id(1,2,3)> <direction:BELOW|ABOVE>",
+    )
+    parser.add_argument(
+        "--setusertag",
+        nargs=1,
+        metavar='usertag',
+        help="set the gauge usertag",
     )
     parser.add_argument(
         "--serialonly", action="store_true", help="print serial number and exit"
@@ -151,7 +170,7 @@ def query_and_response(query, optlist, ser):
         if optlist.loopback:  # RS485 query echo -> read again
             query_echo = resp
             query_dt = dt
-            if re.match(f"@{optlist.id:03d}{query}?;FF", resp.decode()):
+            if re.match(f"@{optlist.id:03d}{query}\?;FF", resp.decode()):
                 ser.timeout = float(optlist.timeout) - query_dt
                 resp = ser.read_until(expected=b";FF", size=None)
                 end_ns = time.clock_gettime_ns(time.CLOCK_REALTIME)
@@ -249,7 +268,6 @@ def main():
     # init_warnings()
 
     ser = serial.Serial()
-    # ser = serial.rs485.RS485(optlist.port)
     ser.port = optlist.port
     ser.baudrate = optlist.baudrate
     ser.timeout = float(optlist.timeout)
@@ -263,9 +281,79 @@ def main():
     if optlist.serialonly:
         exit()
 
+    # run commands
+    cmdcnt = 0
+    if optlist.setid:
+        cmd = f"AD!{optlist.setid}"  # set the RS485 address
+        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
+        print(f"SetID result: {res}", end="")
+        cmdcnt += 1
+        return  # comm fails after the change
+
+    if optlist.setenablerelay:
+        rid = int(optlist.setenablerelay[0])
+        if rid not in {1, 2, 3}:
+            logging.error(f"{rid} not in allowed set {1,2,3}")
+            return
+        ren = optlist.setenablerelay[1].upper()
+        if ren != "OFF" and ren != "ON":
+            logging.error(f"relay enable ({ren}) must be OFF OR ON")
+            return
+        cmd = f"EN{rid:d}!{ren}"  # set the relay1 setpoint
+        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
+        print(f"relay {rid} enable is set to {res}")
+        cmdcnt += 1
+        time.sleep(float(0.2))
+
+    if optlist.setpointrelay:
+        rid = int(optlist.setpointrelay[0])
+        if rid not in {1, 2, 3}:
+            logging.error(f"id:{rid} not in allowed set {1,2,3}")
+            return
+        rsp = float(optlist.setpointrelay[1])
+        if rsp < 1e-8 or rsp > 500:
+            logging.error(f"relay setpoint:{rsp} must be in range (1E-8, 500)")
+            return
+        cmd = f"SP{rid:d}!{rsp:.2E}"  # set the relay1 setpoint
+        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
+        print(f"relay {rid} setpoint is set to {res}")
+        cmdcnt += 1
+        time.sleep(float(0.2))
+
+    if optlist.setdirectionrelay:
+        rid = int(optlist.setdirectionrelay[0])
+        if rid not in {1, 2, 3}:
+            logging.error(f"id:{rid} not in allowed set {1,2,3}")
+            return
+        rdir = optlist.setdirectionrelay[1].upper()
+        if rdir != "BELOW" and rdir != "ABOVE":
+            logging.error(f"relay direction ({rdir}) must be ABOVE OR BELOW")
+            return
+        cmd = f"SD{rid:d}!{rdir}"  # set the relay1 direction
+        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
+        print(f"relay {rid} direction set to {res}")
+        cmdcnt += 1
+        time.sleep(float(0.2))
+
+    if optlist.setusertag:
+        uval = optlist.setusertag[0].upper()
+        cmd = f"UT!{uval}"  # set the relay1 direction
+        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
+        print(f"usertag:{res} is set")
+        cmdcnt += 1
+        time.sleep(float(0.2))
+
+    if cmdcnt:
+        print(f"{cmdcnt} commands were executed")
+
+    print("")
     qry = "PN"  # part number
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"PartNum: {res}")
+
+    qry = "UT"  # user tag
+    res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
+    print(f"UserTag: {res}")
 
     qry = "MD"  # model number
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
@@ -294,10 +382,6 @@ def main():
     qry = "RSD"  # hardware version
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"RecieveSendDelay: {res}")
-
-    cmd = "ENC!ON"  # enable AutoCC
-    res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-    print("enable AutoCC, ")
 
     qry = "ENC"  # time on
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
@@ -340,14 +424,6 @@ def main():
     print("Relays:")
     for a in range(1, 4):
 
-        cmd = "EN{}!ON".format(a)  # enable relay
-        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        print(f"    enable relay{a}, ", end="")
-        #
-        cmd = "SD{}!BELOW".format(a)  # set relay direction
-        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        print("set direction to BELOW")
-        #
         query = "EN{}".format(a)  # relay enabled?
         res, dt, rt, ercnt = query_and_response(query, optlist, ser)
         print(f"    R{a} enable: {res}", end="")
@@ -367,78 +443,7 @@ def main():
         query = "SS{}".format(a)  # status SET|CLEAR
         res, dt, rt, ercnt = query_and_response(query, optlist, ser)
         print(f" R{a} status: {res}")
-
-    t0 = time.time()
-    rstats = dict()
-    dtlist = []
-    retrytot = 0
-    errtot = 0
-    for nn in range(int(optlist.count)):
-        prStr, dt, retries, errcnt = query_and_response("PR4", optlist, ser)
-        dtlist.append(dt)
-        # prVal = float(prStr)
-        if retries in rstats:
-            rstats[retries] += 1
-        else:
-            rstats[retries] = 1
-        retrytot += retries
-        errtot += errcnt
-        if float(optlist.delay) > dt:
-            time.sleep(float(optlist.delay) - dt)
-
-    t1 = time.time()
-    elapsed = t1 - t0
     ser.close()
-    print("")
-    if len(dtlist):
-        dtarray = np.array(dtlist)
-        dtavg = np.mean(dtarray)
-        dtmed = np.median(dtarray)
-        dtstd = np.std(dtarray)
-        dtmin = np.min(dtarray)
-        dtmax = np.max(dtarray)
-
-        print("dt stats:", end="")
-        print(f" avg: {dtavg:>.4f}", end="")
-        print(f" med: {dtmed:>4.3f}", end="")
-        print(f" std: {dtstd:>.4f}", end="")
-        print(f" min: {dtmin:>.4f}", end="")
-        print(f" max: {dtmax:>.4f}", end="")
-        print(f" nominal count: {len(dtlist)}")
-        print(f"   total retries: {retrytot}")
-        print(f"   total errors: {errtot}")
-        print(f" rate: {(len(dtlist) / elapsed):>.1f} reads/sec")
-        for rt in rstats:
-            if rt > 0:
-                print(
-                    f"    retry:{rt} -- {rstats[rt]:>5d}"
-                    " {(rstats[rt]/len(dtlist)):>.4f} probability"
-                )
-        print("")
-
-    if optlist.setid:
-        cmd = f"AD!{optlist.setid}"  # set the RS485 address
-        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        print(f"SetID result: {res}", end="")
-        return  # comm fails after the change
-
-    if optlist.setrelay1:
-        rval = float(optlist.setrelay[1])
-        rdir = optlist.setrelay[2].upper()
-        if rdir != "BELOW" and rdir != "ABOVE":
-            logging.error(f"relay direction ({rdir}) must be ABOVE OR BELOW")
-            return
-        cmd = f"SP1!{rval:.2E}"  # set the relay1 setpoint
-        res1, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        cmd = f"SD1!{rdir}"  # set the relay1 direction
-        res2, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        print(f"relay1 setpoint:{res1}  direction:{res2}")
-
-    if optlist.setusertag:
-        uval = optlist.setusertag
-        cmd = f"UT!{uval}"  # set the relay1 direction
-        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        print(f"usertag:{res} is set")
 
 
 # cmd                   response        description

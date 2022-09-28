@@ -291,9 +291,9 @@ def main():
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"RecieveSendDelay: {res}")
 
-    cmd = "ENC!ON"   # enable AutoCC
-    res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-    print(f"enable AutoCC, ")
+    #cmd = "ENC!ON"   # enable AutoCC
+    #res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
+    #print(f"enable AutoCC, ")
 
     qry = "ENC"    # time on
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
@@ -336,12 +336,12 @@ def main():
     print("Relays:")
     for a in range(1,4):
         
-        cmd = "EN{}!ON".format(a)    # enable relay
-        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        print(f"    enable relay{a}, ", end="")
-        cmd = "SD{}!BELOW".format(a)    # trans status
-        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        print(f"set direction to BELOW")
+        #cmd = "EN{}!ON".format(a)    # enable relay
+        #res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
+        #print(f"    enable relay{a}, ", end="")
+        #cmd = "SD{}!BELOW".format(a)    # trans status
+        #res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
+        #print(f"set direction to BELOW")
         query = "EN{}".format(a)    # trans status
         res, dt, rt, ercnt = query_and_response(query, optlist, ser)
         print(f"    R{a} enable: {res}", end="")
@@ -400,17 +400,6 @@ def main():
                 print(f"    retry:{rt} -- {rstats[rt]:>5d} {(rstats[rt]/len(dtlist)):>.4f} probability")
         print("")
 
-    if optlist.setid:
-        cmd = f"AD!{optlist.setid}"   # enable AutoCC
-        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        print(f"enable AutoCC, ")
-
-    # cmd              response         description
-    # @xxxBR!19200;FF  @xxxACK19200;FF  Set communication Baud rate (4800, 9600, 19200, 38400, 57600, 115200, 230400)
-    # @xxxAD!123;FF    @xxxACK123;FF    Set Transducer communication address (001 to 253)
-    # @xxxRSD!OFF;FF   @xxxACKOFF;FF    Turn on or off communication delay between receive and transmit sequence.
-
-    
 
 
 if __name__ == "__main__":
