@@ -89,6 +89,11 @@ def parse_args():
         "--serialonly", action="store_true", help="print serial number and exit"
     )
     parser.add_argument(
+        "--readpressures",
+        action="store_true",
+        help="print pressure and relay status using count and delay"
+    )
+    parser.add_argument(
         "--loopback", action="store_true", help="connection is RS485 half duplex"
     )
     parser.add_argument(
@@ -251,13 +256,49 @@ def main():
     ser.timeout = float(optlist.timeout)
     ser.open()
 
+    #-- exclusive options
+    if optlist.serialonly:
+        qry = "SN"    # serial number
+        res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
+        print(f"SerialNumber: {res}")
+        exit()
+    elif optlist.readpressures:
+        print("#---------- MKS Gauge Report ----")
+        qry = "SN"    # serial number
+        res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
+        print(f"SerialNumber: {res}")
+        if optlist.count:
+            for nn in range(int(optlist.count)):
+                res, dt, retries, errcnt = query_and_response("PR4", optlist, ser)
+                prs = float(res)
+                print(f"PR4: {float(prs):8.2E} ", end="")
+                time.sleep(0.1)
+                et = 0.1 + dt
+                res, dt, retries, errcnt = query_and_response("PR5", optlist, ser)
+                prs = float(res)
+                print(f"PR5: {float(prs):8.2E} ", end="")
+                time.sleep(0.1)
+                et = 0.1 + dt
+                res, dt, rt, ercnt = query_and_response("T", optlist, ser)
+                print(f"status: {res} ", end="")
+                time.sleep(0.1)
+                et = 0.1 + dt
+                for a in range(1,4):
+                    query = "SS{}".format(a)    # trans status
+                    res, dt, rt, ercnt = query_and_response(query, optlist, ser)
+                    print(f"R{a}:{res} ", end="" )
+                    time.sleep(0.1)
+                    et += (0.1 + dt)
+                print("")
+                if float(optlist.delay) > et:
+                    time.sleep(float(optlist.delay) - dt)
+        exit()
+
     #-- prepare meta data
     print("#---------- MKS Gauge Report ----")
     qry = "SN"    # serial number
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"SerialNumber: {res}")
-    if optlist.serialonly:
-        exit()
 
     qry = "PN"    # part number
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
@@ -291,21 +332,29 @@ def main():
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"RecieveSendDelay: {res}")
 
-    cmd = "ENC!ON"   # enable AutoCC
-    res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-    print(f"enable AutoCC, ")
+    #cmd = "ENC!ON"   # enable AutoCC
+    #res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
+    #print(f"enable AutoCC, ")
 
-    qry = "ENC"    # time on
+    qry = "ENC"    # CC Auto enable
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"AutoCC: {res}")
 
-    qry = "SLC"    # time on
+    qry = "SLC"    # CCOn
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"CCOnSetpoint: {res}")
 
-    qry = "SHC"    # time on
+    qry = "SHC"    # CCOff
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"CCOffSetpoint: {res}")
+
+    qry = "SLP"    # CC/MP smoothing
+    res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
+    print(f"CC/MP smoothing: {res}")
+
+    qry = "PRO"    # time on
+    res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
+    print(f"CC Protection delay: {res}")
 
     qry = "TIM"    # time on
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
@@ -327,6 +376,10 @@ def main():
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"Cold Cathode Reading: {res}")
 
+    qry = "TEM"    # trans status
+    res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
+    print(f"temp: {float(res):.1f} C")
+
     qry = "T"    # trans status
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"status: {res}")
@@ -336,12 +389,12 @@ def main():
     print("Relays:")
     for a in range(1,4):
         
-        cmd = "EN{}!ON".format(a)    # enable relay
-        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        print(f"    enable relay{a}, ", end="")
-        cmd = "SD{}!BELOW".format(a)    # trans status
-        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        print(f"set direction to BELOW")
+        #cmd = "EN{}!ON".format(a)    # enable relay
+        #res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
+        #print(f"    enable relay{a}, ", end="")
+        #cmd = "SD{}!BELOW".format(a)    # trans status
+        #res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
+        #print(f"set direction to BELOW")
         query = "EN{}".format(a)    # trans status
         res, dt, rt, ercnt = query_and_response(query, optlist, ser)
         print(f"    R{a} enable: {res}", end="")
@@ -400,17 +453,6 @@ def main():
                 print(f"    retry:{rt} -- {rstats[rt]:>5d} {(rstats[rt]/len(dtlist)):>.4f} probability")
         print("")
 
-    if optlist.setid:
-        cmd = f"AD!{optlist.setid}"   # enable AutoCC
-        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        print(f"enable AutoCC, ")
-
-    # cmd              response         description
-    # @xxxBR!19200;FF  @xxxACK19200;FF  Set communication Baud rate (4800, 9600, 19200, 38400, 57600, 115200, 230400)
-    # @xxxAD!123;FF    @xxxACK123;FF    Set Transducer communication address (001 to 253)
-    # @xxxRSD!OFF;FF   @xxxACKOFF;FF    Turn on or off communication delay between receive and transmit sequence.
-
-    
 
 
 if __name__ == "__main__":
