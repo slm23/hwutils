@@ -195,7 +195,7 @@ def query_and_response(query, optlist, ser):
         if re.match(r"@...ACK.*;FF", resp.decode()):
             dt = dt0 + dt
             result = re.match(r"@...ACK(.*);FF", resp.decode()).groups()[0]
-            logging.debug(f"result={result} dt={dt:>.3f}")
+            logging.debug(f"resp={resp} dt={dt:>.3f}")
             break
         elif retries < max_retries and dt >= ser.timeout:  # retry
             # print(f"{resp}")
@@ -253,7 +253,7 @@ def cmd_and_response(cmd, optlist, ser):
         if re.match(r"@...ACK.*;FF", resp.decode()):
             dt = dt0 + dt
             result = re.match(r"@...ACK(.*);FF", resp.decode()).groups()[0]
-            logging.debug(f"result={result} dt={dt:>.3f}")
+            logging.debug(f"resp={resp} dt={dt:>.3f}")
             break
         elif retries < max_retries and dt >= ser.timeout:  # retry
             # print(f"{resp}")
@@ -295,7 +295,6 @@ def main():
         exit()
 
     # run commands
-<<<<<<< HEAD
     # unlock the system
     cmd = f"FD!UNLOCK"
     res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
@@ -305,7 +304,7 @@ def main():
         res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
         print(f"SetID result: {res}", end="")
         cmdcnt += 1
-        exit() # cmd fails after the change
+        exit()  # cmd fails after the change
 
     if optlist.setrelay:
         for arglist in optlist.setrelay:
@@ -412,69 +411,6 @@ def main():
     cmd = f"FD!LOCK"
     res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
 
-=======
-    cmdcnt = 0
-    if optlist.setid:
-        cmd = f"AD!{optlist.setid}"  # set the RS485 address
-        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        print(f"SetID result: {res}", end="")
-        cmdcnt += 1
-        return  # comm fails after the change
-
-    if optlist.setenablerelay:
-        rid = int(optlist.setenablerelay[0])
-        if rid not in {1, 2, 3}:
-            logging.error(f"{rid} not in allowed set {1,2,3}")
-            return
-        ren = optlist.setenablerelay[1].upper()
-        if ren != "OFF" and ren != "ON":
-            logging.error(f"relay enable ({ren}) must be OFF OR ON")
-            return
-        cmd = f"EN{rid:d}!{ren}"  # set the relay1 setpoint
-        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        print(f"relay {rid} enable is set to {res}")
-        cmdcnt += 1
-        time.sleep(float(0.2))
-
-    if optlist.setpointrelay:
-        rid = int(optlist.setpointrelay[0])
-        if rid not in {1, 2, 3}:
-            logging.error(f"id:{rid} not in allowed set {1,2,3}")
-            return
-        rsp = float(optlist.setpointrelay[1])
-        if rsp < 1e-8 or rsp > 500:
-            logging.error(f"relay setpoint:{rsp} must be in range (1E-8, 500)")
-            return
-        cmd = f"SP{rid:d}!{rsp:.2E}"  # set the relay1 setpoint
-        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        print(f"relay {rid} setpoint is set to {res}")
-        cmdcnt += 1
-        time.sleep(float(0.2))
-
-    if optlist.setdirectionrelay:
-        rid = int(optlist.setdirectionrelay[0])
-        if rid not in {1, 2, 3}:
-            logging.error(f"id:{rid} not in allowed set {1,2,3}")
-            return
-        rdir = optlist.setdirectionrelay[1].upper()
-        if rdir != "BELOW" and rdir != "ABOVE":
-            logging.error(f"relay direction ({rdir}) must be ABOVE OR BELOW")
-            return
-        cmd = f"SD{rid:d}!{rdir}"  # set the relay1 direction
-        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        print(f"relay {rid} direction set to {res}")
-        cmdcnt += 1
-        time.sleep(float(0.2))
-
-    if optlist.setusertag:
-        uval = optlist.setusertag[0].upper()
-        cmd = f"UT!{uval}"  # set the relay1 direction
-        res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        print(f"usertag:{res} is set")
-        cmdcnt += 1
-        time.sleep(float(0.2))
-
->>>>>>> cc8a345c9d419625454dbcb30f4bbd3fc366cc00
     if cmdcnt:
         print(f"{cmdcnt} commands were executed")
 
