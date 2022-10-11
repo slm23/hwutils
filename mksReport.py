@@ -91,7 +91,7 @@ def parse_args():
     parser.add_argument(
         "--readpressures",
         action="store_true",
-        help="print pressure and relay status using count and delay"
+        help="print pressure and relay status using count and delay",
     )
     parser.add_argument(
         "--loopback", action="store_true", help="connection is RS485 half duplex"
@@ -123,8 +123,9 @@ def init_warnings():
     """Block warnings from Astropy"""
     warnings.simplefilter("ignore", category=AstropyWarning)
 
+
 def query_and_response(query, optlist, ser):
-    """ send command and return response """
+    """send command and return response"""
     dt0 = 0.0
     retries = 0
     max_retries = 5
@@ -133,6 +134,8 @@ def query_and_response(query, optlist, ser):
     errcnt = 0
     result = None
     nn = 0
+    if optlist.debug:
+        logging.debug(f"query={query_bts}")
 
     while retries < max_retries:
         if not optlist.noreset:
@@ -162,11 +165,11 @@ def query_and_response(query, optlist, ser):
         if re.match(r"@...ACK.*;FF", resp.decode()):
             dt = dt0 + dt
             result = re.match(r"@...ACK(.*);FF", resp.decode()).groups()[0]
-            logging.debug(f"result={result} dt={dt:>.3f}")
+            logging.debug(f"resp={resp} dt={dt:>.3f}")
             break
-        elif (
-            retries < max_retries and dt >= ser.timeout):  # retry
+        elif retries < max_retries and dt >= ser.timeout:  # retry
             # print(f"{resp}")
+            logging.debug(f"resp={resp} dt={dt:>.3f}")
             dt0 = dt
             retries += 1
         else:
@@ -184,7 +187,7 @@ def query_and_response(query, optlist, ser):
 
 
 def cmd_and_response(cmd, optlist, ser):
-    """ send command and return response """
+    """send command and return response"""
     dt0 = 0.0
     retries = 0
     max_retries = 5
@@ -193,6 +196,8 @@ def cmd_and_response(cmd, optlist, ser):
     errcnt = 0
     result = None
     nn = 0
+    if optlist.debug:
+        logging.debug(f"cmd={cmd_bts}")
 
     while retries < max_retries:
         if not optlist.noreset:
@@ -222,10 +227,9 @@ def cmd_and_response(cmd, optlist, ser):
         if re.match(r"@...ACK.*;FF", resp.decode()):
             dt = dt0 + dt
             result = re.match(r"@...ACK(.*);FF", resp.decode()).groups()[0]
-            logging.debug(f"result={result} dt={dt:>.3f}")
+            logging.debug(f"resp={resp} dt={dt:>.3f}")
             break
-        elif (
-            retries < max_retries and dt >= ser.timeout):  # retry
+        elif retries < max_retries and dt >= ser.timeout:  # retry
             # print(f"{resp}")
             dt0 = dt
             retries += 1
@@ -256,15 +260,15 @@ def main():
     ser.timeout = float(optlist.timeout)
     ser.open()
 
-    #-- exclusive options
+    # -- exclusive options
     if optlist.serialonly:
-        qry = "SN"    # serial number
+        qry = "SN"  # serial number
         res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
         print(f"SerialNumber: {res}")
         exit()
     elif optlist.readpressures:
         print("#---------- MKS Gauge Report ----")
-        qry = "SN"    # serial number
+        qry = "SN"  # serial number
         res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
         print(f"SerialNumber: {res}")
         if optlist.count:
@@ -283,128 +287,128 @@ def main():
                 print(f"status: {res} ", end="")
                 time.sleep(0.1)
                 et = 0.1 + dt
-                for a in range(1,4):
-                    query = "SS{}".format(a)    # trans status
+                for a in range(1, 4):
+                    query = "SS{}".format(a)  # trans status
                     res, dt, rt, ercnt = query_and_response(query, optlist, ser)
-                    print(f"R{a}:{res} ", end="" )
+                    print(f"R{a}:{res} ", end="")
                     time.sleep(0.1)
-                    et += (0.1 + dt)
+                    et += 0.1 + dt
                 print("")
                 if float(optlist.delay) > et:
                     time.sleep(float(optlist.delay) - dt)
         exit()
 
-    #-- prepare meta data
+    # -- prepare meta data
     print("#---------- MKS Gauge Report ----")
-    qry = "SN"    # serial number
+    qry = "SN"  # serial number
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"SerialNumber: {res}")
 
-    qry = "PN"    # part number
+    qry = "PN"  # part number
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"PartNum: {res}")
 
-    qry = "MD"    # model number
+    qry = "MD"  # model number
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"Model: {res}")
 
-    qry = "DT"    # device type
+    qry = "DT"  # device type
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"DeviceType: {res}")
 
-    qry = "FV"    # firmware version
+    qry = "FV"  # firmware version
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"Firmware: {res}")
 
-    qry = "HV"    # hardware version
+    qry = "HV"  # hardware version
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"Hardware: {res}")
 
-    qry = "AD"    # hardware version
+    qry = "AD"  # hardware version
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"Address: {res}")
 
-    qry = "BR"    # hardware version
+    qry = "BR"  # hardware version
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"BaudRate: {res}")
 
-    qry = "RSD"    # hardware version
+    qry = "RSD"  # hardware version
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"RecieveSendDelay: {res}")
 
-    #cmd = "ENC!ON"   # enable AutoCC
-    #res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-    #print(f"enable AutoCC, ")
+    # cmd = "ENC!ON"   # enable AutoCC
+    # res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
+    # print(f"enable AutoCC, ")
 
-    qry = "ENC"    # CC Auto enable
+    qry = "ENC"  # CC Auto enable
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"AutoCC: {res}")
 
-    qry = "SLC"    # CCOn
+    qry = "SLC"  # CCOn
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"CCOnSetpoint: {res}")
 
-    qry = "SHC"    # CCOff
+    qry = "SHC"  # CCOff
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"CCOffSetpoint: {res}")
 
-    qry = "SLP"    # CC/MP smoothing
+    qry = "SLP"  # CC/MP smoothing
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"CC/MP smoothing: {res}")
 
-    qry = "PRO"    # time on
+    qry = "PRO"  # time on
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"CC Protection delay: {res}")
 
-    qry = "TIM"    # time on
+    qry = "TIM"  # time on
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"TimeOn: {res}")
 
-    qry = "TIM2"    # Cold Cathode time on
+    qry = "TIM2"  # Cold Cathode time on
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"CCTimeOn: {res}")
 
-    qry = "TIM3"    # Cold Cathode dose
+    qry = "TIM3"  # Cold Cathode dose
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"CCDose: {res}")
 
-    qry = "PR4"    # comb pressure reading
+    qry = "PR4"  # comb pressure reading
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"Combined Pressure: {res}")
 
-    qry = "PR5"    # comb pressure reading
+    qry = "PR5"  # comb pressure reading
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"Cold Cathode Reading: {res}")
 
-    qry = "TEM"    # trans status
+    qry = "TEM"  # trans status
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"temp: {float(res):.1f} C")
 
-    qry = "T"    # trans status
+    qry = "T"  # trans status
     res, dt, rt, ercnt = query_and_response(qry, optlist, ser)
     print(f"status: {res}")
 
     print("")
 
     print("Relays:")
-    for a in range(1,4):
-        
-        #cmd = "EN{}!ON".format(a)    # enable relay
-        #res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        #print(f"    enable relay{a}, ", end="")
-        #cmd = "SD{}!BELOW".format(a)    # trans status
-        #res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
-        #print(f"set direction to BELOW")
-        query = "EN{}".format(a)    # trans status
+    for a in range(1, 4):
+
+        # cmd = "EN{}!ON".format(a)    # enable relay
+        # res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
+        # print(f"    enable relay{a}, ", end="")
+        # cmd = "SD{}!BELOW".format(a)    # trans status
+        # res, dt, rt, ercnt = cmd_and_response(cmd, optlist, ser)
+        # print(f"set direction to BELOW")
+        query = "EN{}".format(a)  # trans status
         res, dt, rt, ercnt = query_and_response(query, optlist, ser)
         print(f"    R{a} enable: {res}", end="")
-        query = "SP{}".format(a)    # trans status
+        query = "SP{}".format(a)  # trans status
         res, dt, rt, ercnt = query_and_response(query, optlist, ser)
         print(f"    R{a} setPoint: {res}", end="")
-        query = "SD{}".format(a)    # trans status
+        query = "SD{}".format(a)  # trans status
         res, dt, rt, ercnt = query_and_response(query, optlist, ser)
         print(f" R{a} direction: {res}", end="")
-        query = "SS{}".format(a)    # trans status
+        query = "SS{}".format(a)  # trans status
         res, dt, rt, ercnt = query_and_response(query, optlist, ser)
         print(f" R{a} status: {res}")
 
@@ -450,9 +454,10 @@ def main():
         print(f" rate: {(len(dtlist) / elapsed):>.1f} reads/sec")
         for rt in rstats:
             if rt > 0:
-                print(f"    retry:{rt} -- {rstats[rt]:>5d} {(rstats[rt]/len(dtlist)):>.4f} probability")
+                print(
+                    f"    retry:{rt} -- {rstats[rt]:>5d} {(rstats[rt]/len(dtlist)):>.4f} probability"
+                )
         print("")
-
 
 
 if __name__ == "__main__":
